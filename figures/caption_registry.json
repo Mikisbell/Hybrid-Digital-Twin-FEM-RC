@@ -1,0 +1,23 @@
+[
+  {
+    "figure": "Figure_1.png",
+    "number": 1,
+    "caption": "Synthetic input ground motion time history (PGA = 0.323g).",
+    "label": "fig:1",
+    "path": "/home/mateo/Hybrid-Digital-Twin-Seismic-RC/figures/Figure_1.png"
+  },
+  {
+    "figure": "Figure_2.png",
+    "number": 2,
+    "caption": "Inter-story drift ratio history for all five stories under synthetic GM.",
+    "label": "fig:2",
+    "path": "/home/mateo/Hybrid-Digital-Twin-Seismic-RC/figures/Figure_2.png"
+  },
+  {
+    "figure": "Figure_3.png",
+    "number": 3,
+    "caption": "Global hysteresis loop: base shear vs. roof displacement under synthetic GM.",
+    "label": "fig:3",
+    "path": "/home/mateo/Hybrid-Digital-Twin-Seismic-RC/figures/Figure_3.png"
+  }
+]
