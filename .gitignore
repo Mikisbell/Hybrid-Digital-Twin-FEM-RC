@@ -1,4 +1,60 @@
-# Byte-compiled / optimized / DLL files
+# =============================================================================
+# Hybrid Digital Twin - Strict .gitignore
+# =============================================================================
+# CRITICAL: OpenSeesPy NLTHA simulations generate GB-scale data.
+# Data is NEVER committed. The pipeline reproduces it from code.
+# Use DVC or re-run the simulation scripts to regenerate datasets.
+# =============================================================================
+
+# ── Heavy simulation data (NLTHA outputs) ──────────────────────────────────
+data/raw/**/*.csv
+data/raw/**/*.hdf5
+data/raw/**/*.h5
+data/raw/**/*.pkl
+data/raw/**/*.parquet
+data/raw/**/*.npy
+data/raw/**/*.npz
+data/processed/**/*.csv
+data/processed/**/*.hdf5
+data/processed/**/*.h5
+data/processed/**/*.pkl
+data/processed/**/*.parquet
+data/processed/**/*.npy
+data/processed/**/*.npz
+data/external/**/*.csv
+data/external/**/*.hdf5
+data/external/**/*.h5
+data/external/**/*.AT2
+data/external/**/*.VT2
+
+# ── Trained model weights (large binaries) ──────────────────────────────────
+data/models/**/*.pt
+data/models/**/*.pth
+data/models/**/*.h5
+data/models/**/*.onnx
+data/models/**/*.pb
+data/models/**/*.tflite
+data/models/**/*.safetensors
+*.ckpt
+
+# ── Keep directory structure with .gitkeep ──────────────────────────────────
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/external/.gitkeep
+!data/models/.gitkeep
+
+# ── HRPUB manuscript build artifacts ────────────────────────────────────────
+manuscript/**/*.aux
+manuscript/**/*.bbl
+manuscript/**/*.blg
+manuscript/**/*.brf
+manuscript/**/*.fdb_latexmk
+manuscript/**/*.fls
+manuscript/**/*.out
+manuscript/**/*.synctex.gz
+manuscript/**/*.log
+
+# ── Byte-compiled / optimized / DLL files ───────────────────────────────────
 __pycache__/
 *.py[codz]
 *$py.class

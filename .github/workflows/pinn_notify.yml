@@ -1,0 +1,123 @@
+# =============================================================================
+# PINN Training Results → Notion Sync
+# =============================================================================
+# Triggers when benchmark_results.json or training logs are pushed to main.
+# Creates an entry in the Simulation Log database with training metrics.
+#
+# Required GitHub Secrets:
+#   - NOTION_TOKEN           : Internal integration token
+#   - NOTION_SIMULATION_DB   : Simulation Log database ID
+# =============================================================================
+
+name: "🧠 Log PINN Training to Notion"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/pinn/**'
+      - 'data/models/benchmark_results.json'
+
+jobs:
+  log-training:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install notion-client
+
+      - name: Log PINN update to Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_SIM_DB: ${{ secrets.NOTION_SIMULATION_DB }}
+        run: |
+          python -c "
+          import os, json
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from notion_client import Client
+
+          notion = Client(auth=os.environ['NOTION_TOKEN'])
+          db_id = os.environ.get('NOTION_SIM_DB', '')
+
+          if not db_id:
+              print('⚠️  NOTION_SIMULATION_DB secret not set. Skipping.')
+              exit(0)
+
+          commit_msg = '''${{ github.event.head_commit.message }}'''
+          sha_short = '${{ github.sha }}'[:7]
+          repo_url = '${{ github.server_url }}/${{ github.repository }}'
+          commit_url = f'{repo_url}/commit/${{ github.sha }}'
+
+          # Try to read benchmark results if they exist
+          bench_path = Path('data/models/benchmark_results.json')
+          bench = {}
+          if bench_path.exists():
+              bench = json.loads(bench_path.read_text())
+
+          latency = bench.get('warm_mean_ms', None)
+          realtime_ok = bench.get('realtime_ok', None)
+          device = bench.get('device', 'unknown')
+
+          # Build description with metrics
+          desc_parts = [f'Commit: {sha_short}', f'Device: {device}']
+          if latency is not None:
+              desc_parts.append(f'Latency: {latency:.3f} ms')
+              desc_parts.append(f'Real-time: {\"PASS\" if realtime_ok else \"FAIL\"}')
+          if 'batch_throughput' in bench:
+              tp = bench['batch_throughput']
+              if '1' in tp:
+                  desc_parts.append(f'Throughput (bs=1): {tp[\"1\"]} samples/s')
+
+          description = ' | '.join(desc_parts)
+
+          # Create Notion page in Simulation Log
+          properties = {
+              'Nombre': {
+                  'title': [{'text': {'content': f'PINN: {commit_msg[:80]}'}}]
+              },
+          }
+
+          # Add optional properties if DB supports them
+          try:
+              notion.pages.create(
+                  parent={'database_id': db_id},
+                  properties=properties,
+                  children=[
+                      {
+                          'object': 'block',
+                          'type': 'callout',
+                          'callout': {
+                              'icon': {'type': 'emoji', 'emoji': '🧠'},
+                              'rich_text': [{'text': {'content': description}}]
+                          }
+                      },
+                      {
+                          'object': 'block',
+                          'type': 'paragraph',
+                          'paragraph': {
+                              'rich_text': [{'text': {
+                                  'content': f'Full commit: ',
+                              }}, {'text': {
+                                  'content': commit_url,
+                                  'link': {'url': commit_url}
+                              }}]
+                          }
+                      }
+                  ]
+              )
+              print(f'✅ PINN logged to Notion: [{sha_short}] {description}')
+          except Exception as e:
+              print(f'⚠️ Notion logging failed: {e}')
+              print(f'   Metrics: {description}')
+          "
