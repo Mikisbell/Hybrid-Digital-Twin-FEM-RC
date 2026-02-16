@@ -30,6 +30,9 @@ tables>=3.8.0
 tqdm>=4.65.0
 pyyaml>=6.0
 
+# Notion API integration (GitHub↔Notion sync)
+notion-client>=2.2.0
+
 # Optional: For advanced PINN implementations
 # scikit-learn>=1.2.0
 # jax[cpu]>=0.4.0

@@ -1,0 +1,131 @@
+# =============================================================================
+# Hybrid Digital Twin - GitHub → Notion Sync Engine
+# =============================================================================
+# Automatically logs every push to the Notion research database.
+# Required GitHub Secrets:
+#   - NOTION_TOKEN       : Internal integration token from Notion Developers
+#   - NOTION_DATABASE_ID : ID of the Notion database (32-char hex from URL)
+# =============================================================================
+
+name: "🔬 Sync Research Progress to Notion"
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'notebooks/**'
+      - 'data/**'
+
+jobs:
+  sync-notion:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit for diff
+
+      - name: Determine update category
+        id: categorize
+        run: |
+          # Analyze which files changed to auto-categorize the update
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "initial")
+          
+          if echo "$CHANGED_FILES" | grep -q "^src/opensees_analysis/"; then
+            echo "category=Simulation Layer" >> $GITHUB_OUTPUT
+            echo "phase=Methods" >> $GITHUB_OUTPUT
+          elif echo "$CHANGED_FILES" | grep -q "^src/pinn/"; then
+            echo "category=Intelligence Layer" >> $GITHUB_OUTPUT
+            echo "phase=Methods" >> $GITHUB_OUTPUT
+          elif echo "$CHANGED_FILES" | grep -q "^notebooks/"; then
+            echo "category=Analysis & EDA" >> $GITHUB_OUTPUT
+            echo "phase=Results" >> $GITHUB_OUTPUT
+          elif echo "$CHANGED_FILES" | grep -q "^data/"; then
+            echo "category=Data Pipeline" >> $GITHUB_OUTPUT
+            echo "phase=Methods" >> $GITHUB_OUTPUT
+          else
+            echo "category=General Update" >> $GITHUB_OUTPUT
+            echo "phase=Development" >> $GITHUB_OUTPUT
+          fi
+
+          # Count files changed
+          FILE_COUNT=$(echo "$CHANGED_FILES" | wc -l)
+          echo "file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Notion client
+        run: pip install notion-client
+
+      - name: Push update to Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_ROADMAP_DB }}
+        run: |
+          python -c "
+          import os
+          from datetime import datetime, timezone
+          from notion_client import Client
+
+          notion = Client(auth=os.environ['NOTION_TOKEN'])
+          db_id = os.environ['NOTION_DATABASE_ID']
+
+          commit_msg = '''${{ github.event.head_commit.message }}'''
+          category = '${{ steps.categorize.outputs.category }}'
+          phase = '${{ steps.categorize.outputs.phase }}'
+          file_count = '${{ steps.categorize.outputs.file_count }}'
+          author = '${{ github.actor }}'
+          sha_short = '${{ github.sha }}'[:7]
+          repo_url = '${{ github.server_url }}/${{ github.repository }}'
+          commit_url = f'{repo_url}/commit/${{ github.sha }}'
+
+          # Map English categories to Spanish
+          cat_map = {
+              'Simulation Layer': 'Capa de Simulación',
+              'Intelligence Layer': 'Capa de Inteligencia',
+              'Analysis & EDA': 'Análisis & EDA',
+              'Data Pipeline': 'Pipeline de Datos',
+              'General Update': 'Actualización General',
+          }
+          phase_map = {
+              'Methods': 'Métodos',
+              'Results': 'Resultados',
+              'Development': 'Desarrollo',
+          }
+          cat_es = cat_map.get(category, category)
+          phase_es = phase_map.get(phase, phase)
+
+          notion.pages.create(
+              parent={'database_id': db_id},
+              properties={
+                  'Tarea': {
+                      'title': [{'text': {'content': commit_msg[:100]}}]
+                  },
+                  'Categoría': {
+                      'select': {'name': cat_es}
+                  },
+                  'Fase': {
+                      'select': {'name': phase_es}
+                  },
+                  'Estado': {
+                      'select': {'name': 'Completada'}
+                  },
+                  'Fecha': {
+                      'date': {'start': datetime.now(timezone.utc).isoformat()}
+                  },
+                  'Commit': {
+                      'url': commit_url
+                  },
+                  'Archivos Modificados': {
+                      'number': int(file_count)
+                  }
+              }
+          )
+          print(f'✅ Notion actualizado: [{sha_short}] {cat_es} - {commit_msg[:60]}')
+          "
