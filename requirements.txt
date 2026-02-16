@@ -1,39 +1,58 @@
-# Hybrid Digital Twin Framework - Dependencies
+# =============================================================================
+# Hybrid Digital Twin Framework — Full Dependency Stack
+# =============================================================================
+# Verified: 2026-02-16 | Python 3.10.12 | venv
+# Install:  pip install -r requirements.txt
+# =============================================================================
 
-# Core scientific computing
-numpy>=1.24.0
-scipy>=1.10.0
-pandas>=2.0.0
+# ── Core Scientific Computing ───────────────────────────────────────────────
+numpy>=2.2.0              # N-dimensional arrays, linear algebra
+scipy>=1.15.0             # Signal processing, optimization, Newmark-β integration
+pandas>=2.3.0             # DataFrames for simulation results & feature tables
 
-# OpenSeesPy for structural analysis
-openseespy>=3.5.0
+# ── Structural Analysis ─────────────────────────────────────────────────────
+openseespy>=3.7.0         # Nonlinear time history analysis (NLTHA) of RC frames
 
-# Machine Learning and Deep Learning
-torch>=2.0.0
-tensorflow>=2.13.0  # Alternative framework option
+# ── Machine Learning & Deep Learning ────────────────────────────────────────
+torch>=2.0.0              # PINN architecture, training, inference (CPU or CUDA)
+# tensorflow>=2.13.0      # Alternative framework (uncomment if needed)
 
-# Visualization
-matplotlib>=3.7.0
-seaborn>=0.12.0
-plotly>=5.14.0
+# ── Visualization ───────────────────────────────────────────────────────────
+matplotlib>=3.10.0        # Static plots: drift envelopes, pushover curves, loss
+seaborn>=0.13.0           # Statistical plots: correlation matrices, distributions
+plotly>=6.5.0             # Interactive plots: 3D model, real-time dashboard
 
-# Jupyter notebooks
-jupyter>=1.0.0
-notebook>=6.5.0
-ipykernel>=6.23.0
+# ── Jupyter Notebooks ───────────────────────────────────────────────────────
+jupyter>=1.0.0            # Notebook server & ecosystem
+notebook>=7.5.0           # Notebook UI
+ipykernel>=7.2.0          # Python kernel for VS Code / JupyterLab
 
-# Data management
-h5py>=3.8.0
-tables>=3.8.0
+# ── Data Management ─────────────────────────────────────────────────────────
+h5py>=3.15.0              # HDF5 I/O for large NLTHA output arrays
+tqdm>=4.67.0              # Progress bars for batch simulations
+pyyaml>=6.0               # YAML config file parsing
 
-# Utilities
-tqdm>=4.65.0
-pyyaml>=6.0
+# ── API & Networking ────────────────────────────────────────────────────────
+notion-client>=2.2.0      # Notion API: log simulations & roadmap sync
+httpx>=0.28.0             # HTTP client for direct Notion REST API calls
 
-# Notion API integration (GitHub↔Notion sync)
-notion-client>=2.2.0
+# ── ML Experiment Tracking ──────────────────────────────────────────────────
+wandb>=0.25.0             # Weights & Biases: loss curves, hyperparams, artifacts
 
-# Optional: For advanced PINN implementations
-# scikit-learn>=1.2.0
-# jax[cpu]>=0.4.0
-# flax>=0.6.0
+# ── Reactive Notebooks ──────────────────────────────────────────────────────
+marimo>=0.19.0            # Reactive Python notebooks (parametric exploration)
+
+# ── Data Version Control ────────────────────────────────────────────────────
+dvc>=3.60.0               # Version heavy data files without bloating Git
+
+# ── Testing ─────────────────────────────────────────────────────────────────
+pytest>=9.0.0             # Unit tests for pipeline, model, and utilities
+
+# ── Code Quality (dev) ─────────────────────────────────────────────────────
+pre-commit>=4.5.0         # Git hooks: auto-lint before every commit
+# ruff, black, isort run via pre-commit (no pip install needed)
+
+# ── Optional: Advanced PINN ─────────────────────────────────────────────────
+# scikit-learn>=1.5.0     # Baseline ML models for comparison
+# jax[cpu]>=0.4.0         # JAX backend for differentiable physics
+# flax>=0.6.0             # Neural network library on JAX

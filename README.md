@@ -66,9 +66,21 @@ git clone https://github.com/Mikisbell/Hybrid-Digital-Twin-Seismic-RC.git
 cd Hybrid-Digital-Twin-Seismic-RC
 ```
 
-2. Install dependencies:
+2. Create virtual environment and install dependencies:
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+3. Register Jupyter kernel:
+```bash
+python -m ipykernel install --user --name hybrid-dt --display-name "Hybrid DT (Python 3.10)"
+```
+
+4. Activate pre-commit hooks:
+```bash
+pre-commit install
 ```
 
 ## Getting Started
@@ -96,6 +108,45 @@ See individual directory READMEs for detailed information.
 - NumPy, SciPy, Pandas
 - Jupyter for notebooks
 - notion-client (for automation sync)
+
+## Development Stack
+
+### VS Code Extensions (11)
+
+| Extension | Category | Purpose |
+|-----------|----------|---------|
+| **Jupyter PowerToys** | Notebooks | Kernel management, execution profiling, notebook diffs |
+| **Data Table Renderers** | Notebooks | Interactive sortable/filterable DataFrames in cell output |
+| **Ruff** | Code Quality | Ultra-fast Python linter (100x faster than flake8), auto-fixes |
+| **Black Formatter** | Code Quality | Deterministic code formatting on save |
+| **isort** | Code Quality | Automatic import sorting (Black-compatible profile) |
+| **GitLens** | Version Control | Inline blame, file history, commit comparison |
+| **Git Graph** | Version Control | Visual branch/commit graph for project history |
+| **TensorBoard** | ML Training | Loss curves, weight histograms, model graphs inside VS Code |
+| **Markdown Mermaid** | Documentation | Flow/sequence diagrams in Markdown (architecture docs) |
+| **LaTeX Workshop** | Publication | LaTeX editing/compilation for HRPUB manuscript |
+| **MD Preview GitHub** | Documentation | GitHub-accurate Markdown preview |
+
+### Python Packages (beyond core dependencies)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| **Weights & Biases** | ≥0.25.0 | ML experiment tracking: hyperparameters, loss, artifacts |
+| **Marimo** | ≥0.19.0 | Reactive notebooks for parametric PINN exploration |
+| **DVC** | ≥3.60.0 | Data version control for GB-scale simulation outputs |
+| **pytest** | ≥9.0.0 | Unit testing for pipeline, model, and utilities |
+| **pre-commit** | ≥4.5.0 | Git hooks: Ruff + format + isort + file hygiene on every commit |
+
+### Automated Workflows (GitHub Actions)
+
+| Workflow | Trigger | Action |
+|----------|---------|--------|
+| `🔬 Sync Research Progress` | Push to `src/`, `notebooks/`, `data/` | Creates entry in Notion Roadmap DB |
+| `🧠 Log PINN Training` | Push to `src/pinn/` or benchmark results | Logs metrics to Notion Simulation DB |
+
+### Pre-commit Hooks (8 active)
+
+Every `git commit` automatically runs: Ruff lint → Ruff format → isort → trailing whitespace → end-of-file fixer → YAML check → JSON check → large file blocker (>1 MB).
 
 ## License
 
