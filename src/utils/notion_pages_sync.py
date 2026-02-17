@@ -1267,78 +1267,103 @@ class NotionPagesSync:
         logger.info("SUB-PAGES SYNC COMPLETE")
         logger.info("=" * 60)
 
-    def update_main_page_navigation(self) -> None:
-        """Add a navigation section at the top of main page linking to sub-pages."""
+    def sync_dashboard(self) -> None:
+        """Replace main page content with a clean navigation dashboard.
+
+        Deletes all content blocks (keeps child_database / child_page) then
+        appends a compact dashboard with project description, links to
+        sub-pages, links to databases, and quick-start info.
+        """
         if self.dry_run:
-            logger.info("[DRY RUN] Would update main page navigation")
+            logger.info("[DRY RUN] Would rebuild main page dashboard")
             return
 
-        existing = self._find_existing_subpages()
-        if not existing:
-            logger.info("No sub-pages found to create navigation for")
-            return
+        import time as _time
 
-        # Build navigation blocks
-        nav_blocks: list[dict] = [
-            divider(),
-            h2("📚 Navegación — Documentación Completa"),
-            callout(
-                "Este workspace contiene documentación detallada en sub-páginas dedicadas. "
-                "Haga clic en cada enlace para acceder a la documentación completa.",
-                "🗂️",
-            ),
-        ]
-        for title in existing:
-            desc = ""
-            if "Documentación" in title:
-                desc = " — Modelo RC, PINN, Data Factory, Pipeline, utilidades"
-            elif "Manuscrito" in title:
-                desc = " — Progreso §1-§6, referencias [1]-[15], formato HRPUB"
-            elif "Metodología" in title:
-                desc = " — Campañas NLTHA, espectros, métricas de daño"
-            elif "Guía" in title:
-                desc = " — Setup, comandos, CI/CD, convenciones, dependencias"
-            nav_blocks.append(
-                bullet(
-                    _rt(f"{title}", bold=True),
-                    _rt(f"{desc} → ver sub-página"),
-                )
-            )
-        nav_blocks.append(divider())
+        keep_types = {"child_database", "child_page"}
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-        # Find the position to insert (after the TOC block)
+        # ── 1. Delete old content blocks ──────────────────────────
         resp = self.client.blocks.children.list(MAIN_PAGE_ID)
-        all_blocks = resp.get("results", [])
+        all_blocks = list(resp.get("results", []))
         while resp.get("has_more"):
             resp = self.client.blocks.children.list(MAIN_PAGE_ID, start_cursor=resp["next_cursor"])
             all_blocks.extend(resp.get("results", []))
 
-        # Find first divider after TOC
-        insert_after = None
-        found_toc = False
-        for b in all_blocks:
-            if b["type"] == "table_of_contents":
-                found_toc = True
-            elif found_toc and b["type"] == "divider":
-                insert_after = b["id"]
-                break
-
-        if insert_after:
+        to_delete = [b for b in all_blocks if b["type"] not in keep_types]
+        for i, b in enumerate(to_delete):
             try:
-                self.client.blocks.children.append(
-                    MAIN_PAGE_ID,
-                    children=nav_blocks,
-                    after=insert_after,
-                )
-                logger.info("✅ Navigation section added after TOC")
+                self.client.blocks.delete(b["id"])
             except Exception as e:
-                logger.warning("Could not insert navigation: %s", e)
-                # Fallback: append at end
-                self.client.blocks.children.append(MAIN_PAGE_ID, children=nav_blocks)
-                logger.info("✅ Navigation section appended at end (fallback)")
-        else:
-            self.client.blocks.children.append(MAIN_PAGE_ID, children=nav_blocks)
-            logger.info("✅ Navigation section appended at end")
+                logger.warning("  Could not delete block %s: %s", b["id"], e)
+            if (i + 1) % 10 == 0:
+                _time.sleep(0.5)
+        logger.info("  Deleted %d content blocks", len(to_delete))
+
+        # ── 2. Build dashboard blocks ─────────────────────────────
+        dashboard: list[dict] = [
+            callout(
+                "Framework de Gemelo Digital Híbrido que combina simulación de "
+                "alta fidelidad (OpenSeesPy) con redes neuronales informadas por "
+                "física (PINN) para predicción sísmica en tiempo real de edificios "
+                "de concreto reforzado.",
+                "🏗️",
+            ),
+            para(),
+            divider(),
+            h2("📚 Documentación"),
+            bullet(
+                _rt("📖 Documentación Técnica", bold=True),
+                _rt(" — Modelo RC, Hybrid-PINN, Data Factory, Pipeline ML, utilidades"),
+            ),
+            bullet(
+                _rt("📝 Manuscrito HRPUB", bold=True),
+                _rt(" — Progreso §1–§6, referencias [1]–[15], formato de publicación"),
+            ),
+            bullet(
+                _rt("🔬 Metodología y Resultados", bold=True),
+                _rt(" — Campañas NLTHA, métricas de daño, espectros, criterios de éxito"),
+            ),
+            bullet(
+                _rt("🛠️ Guía de Desarrollo", bold=True),
+                _rt(" — Setup, comandos, CI/CD, convenciones, dependencias"),
+            ),
+            para(),
+            h2("📊 Bases de Datos"),
+            bullet(
+                _rt("📅 Hoja de Ruta de Investigación", bold=True),
+                _rt(" — Roadmap de hitos y tareas del proyecto"),
+            ),
+            bullet(
+                _rt("🔬 Registro de Simulaciones", bold=True),
+                _rt(" — Log de cada simulación NLTHA con métricas"),
+            ),
+            para(),
+            divider(),
+            h2("⚡ Inicio Rápido"),
+            bullet(
+                _rt("Repositorio: "),
+                _link("GitHub", REPO_URL, bold=True),
+            ),
+            bullet(
+                _rt("Journal: "),
+                _rt("HRPUB", bold=True),
+                _rt(" — Horizon Research Publishing"),
+            ),
+            bullet(
+                _rt("Investigador: "),
+                _rt("Mikisbell", bold=True),
+            ),
+            divider(),
+            callout(
+                f"Dashboard generado automáticamente • {ts} • notion_pages_sync.py",
+                "🔄",
+            ),
+        ]
+
+        # ── 3. Append dashboard ───────────────────────────────────
+        self.client.blocks.children.append(MAIN_PAGE_ID, children=dashboard)
+        logger.info("✅ Main page dashboard updated with %d blocks", len(dashboard))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1370,7 +1395,9 @@ def main() -> None:
     parser.add_argument(
         "--clean", action="store_true", help="Delete existing sub-pages before recreating"
     )
-    parser.add_argument("--nav", action="store_true", help="Only update navigation on main page")
+    parser.add_argument(
+        "--dashboard", action="store_true", help="Only rebuild the main page as a clean dashboard"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -1383,8 +1410,8 @@ def main() -> None:
 
     sync = NotionPagesSync(dry_run=args.dry_run)
 
-    if args.nav:
-        sync.update_main_page_navigation()
+    if args.dashboard:
+        sync.sync_dashboard()
     else:
         sync.sync(clean=args.clean)
 

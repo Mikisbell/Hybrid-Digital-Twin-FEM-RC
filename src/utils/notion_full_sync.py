@@ -2,15 +2,17 @@
 notion_full_sync.py — Comprehensive Notion Project Synchronization
 ===================================================================
 
-Populates the Notion workspace with the *complete* state of the
-Hybrid Digital Twin project:
+Populates the Notion workspace:
 
-    1. Updates the **main project page** with architecture, metrics,
-       technology stack, publication progress, and current status.
+    1. Rebuilds the **main project page** as a clean navigation dashboard
+       (project description, links to sub-pages, links to DBs).
     2. Updates the **Roadmap DB** with actual milestone statuses
        derived from the Git history.
     3. Syncs the **Simulation DB** with NLTHA campaign results
        from ``data/raw/factory_summary.csv``.
+
+Detailed content lives in dedicated sub-pages managed by
+``notion_pages_sync.py``.
 
 Usage::
 
@@ -177,6 +179,54 @@ def bookmark(url: str, caption: str = "") -> dict:
     if caption:
         block["bookmark"]["caption"] = [_rich(caption)]
     return block
+
+
+# ── Dashboard-specific helpers (accept rich_text dicts directly) ──────────
+
+
+def _blank() -> dict:
+    """Empty paragraph — visual spacer."""
+    return {"object": "block", "type": "paragraph", "paragraph": {"rich_text": []}}
+
+
+def _bullet(*rt_parts: dict) -> dict:
+    """Bulleted list item from rich_text dicts."""
+    return {
+        "object": "block",
+        "type": "bulleted_list_item",
+        "bulleted_list_item": {"rich_text": list(rt_parts)},
+    }
+
+
+def _callout(text: str, emoji: str = "💡") -> dict:
+    return {
+        "object": "block",
+        "type": "callout",
+        "callout": {
+            "icon": {"type": "emoji", "emoji": emoji},
+            "rich_text": [_rich(text)],
+        },
+    }
+
+
+def _divider() -> dict:
+    return {"object": "block", "type": "divider", "divider": {}}
+
+
+def _link_rt(text: str, url: str, bold: bool = False) -> dict:
+    """Rich-text element with a link."""
+    return {
+        "type": "text",
+        "text": {"content": text, "link": {"url": url}},
+        "annotations": {
+            "bold": bold,
+            "italic": False,
+            "strikethrough": False,
+            "underline": False,
+            "code": False,
+            "color": "default",
+        },
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -728,52 +778,113 @@ class NotionProjectSync:
     # 1. Update main project page (replace all blocks)
     # -------------------------------------------------------------------
     def sync_main_page(self) -> None:
-        """Rebuild the main project page with full content."""
-        logger.info("Syncing main project page: %s", MAIN_PAGE_ID)
+        """Rebuild the main page as a clean navigation dashboard.
 
-        # Build all sections
-        blocks: list[dict] = []
-        blocks.extend(_build_header_section())
-        blocks.extend(_build_project_info())
-        blocks.extend(_build_architecture())
-        blocks.extend(_build_tech_stack())
-        blocks.extend(_build_model_specs())
-        blocks.extend(_build_design_spectrum())
-        blocks.extend(_build_equations())
-        blocks.extend(_build_metrics())
-        blocks.extend(_build_campaign_results(self.campaign))
-        blocks.extend(_build_publication_progress())
-        blocks.extend(_build_file_structure())
-        blocks.extend(_build_commit_timeline(self.commits))
-        blocks.extend(_build_next_steps())
-        blocks.extend(_build_footer())
+        All detailed content lives in dedicated sub-pages.  The main page
+        only shows a brief project description, links to the 4 sub-pages
+        and the 2 databases, plus quick-start info.
+        """
+        logger.info("Syncing main project page (dashboard): %s", MAIN_PAGE_ID)
+
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        keep_types = {"child_database", "child_page"}
+
+        blocks: list[dict] = [
+            # Header callout
+            _callout(
+                "Framework de Gemelo Digital Híbrido que combina simulación de "
+                "alta fidelidad (OpenSeesPy) con redes neuronales informadas por "
+                "física (PINN) para predicción sísmica en tiempo real de edificios "
+                "de concreto reforzado.",
+                "🏗️",
+            ),
+            _blank(),
+            _divider(),
+            # Documentation
+            heading2("📚 Documentación"),
+            _bullet(
+                _rich("📖 Documentación Técnica", bold=True),
+                _rich(" — Modelo RC, Hybrid-PINN, Data Factory, Pipeline ML, utilidades"),
+            ),
+            _bullet(
+                _rich("📝 Manuscrito HRPUB", bold=True),
+                _rich(" — Progreso §1–§6, referencias [1]–[15], formato de publicación"),
+            ),
+            _bullet(
+                _rich("🔬 Metodología y Resultados", bold=True),
+                _rich(" — Campañas NLTHA, métricas de daño, espectros, criterios de éxito"),
+            ),
+            _bullet(
+                _rich("🛠️ Guía de Desarrollo", bold=True),
+                _rich(" — Setup, comandos, CI/CD, convenciones, dependencias"),
+            ),
+            _blank(),
+            # Databases
+            heading2("📊 Bases de Datos"),
+            _bullet(
+                _rich("📅 Hoja de Ruta de Investigación", bold=True),
+                _rich(" — Roadmap de hitos y tareas del proyecto"),
+            ),
+            _bullet(
+                _rich("🔬 Registro de Simulaciones", bold=True),
+                _rich(" — Log de cada simulación NLTHA con métricas"),
+            ),
+            _blank(),
+            _divider(),
+            # Quick start
+            heading2("⚡ Inicio Rápido"),
+            _bullet(
+                _rich("Repositorio: "),
+                _link_rt("GitHub", REPO_URL, bold=True),
+            ),
+            _bullet(
+                _rich("Journal: "),
+                _rich("HRPUB", bold=True),
+                _rich(" — Horizon Research Publishing"),
+            ),
+            _bullet(
+                _rich("Investigador: "),
+                _rich("Mikisbell", bold=True),
+            ),
+            _divider(),
+            # Footer
+            _callout(
+                f"Dashboard generado automáticamente • {ts} • notion_full_sync.py",
+                "🔄",
+            ),
+        ]
 
         if self.dry_run:
-            logger.info("[DRY RUN] Would write %d blocks to main page.", len(blocks))
-            for i, b in enumerate(blocks):
-                btype = b.get("type", "?")
-                logger.info("  Block %02d: %s", i, btype)
+            logger.info("[DRY RUN] Would write %d dashboard blocks.", len(blocks))
             return
 
-        # Delete existing blocks (except the two child_databases)
-        existing = self.client.blocks.children.list(MAIN_PAGE_ID)
-        db_block_ids = []
-        for b in existing["results"]:
-            if b["type"] == "child_database":
-                db_block_ids.append(b["id"])
-            else:
-                try:
-                    self.client.blocks.delete(b["id"])
-                except Exception as exc:
-                    logger.warning("Could not delete block %s: %s", b["id"], exc)
+        # Delete existing content blocks — keep child_database & child_page
+        import time
 
-        # Append new blocks in batches of 100 (Notion limit)
-        for i in range(0, len(blocks), 100):
-            batch = blocks[i : i + 100]
-            self.client.blocks.children.append(MAIN_PAGE_ID, children=batch)
-            logger.info("  Appended blocks %d–%d", i, i + len(batch))
+        resp = self.client.blocks.children.list(MAIN_PAGE_ID)
+        all_existing = list(resp.get("results", []))
+        while resp.get("has_more"):
+            resp = self.client.blocks.children.list(MAIN_PAGE_ID, start_cursor=resp["next_cursor"])
+            all_existing.extend(resp.get("results", []))
 
-        logger.info("✅ Main page updated with %d blocks.", len(blocks))
+        to_delete = [b for b in all_existing if b["type"] not in keep_types]
+        for i, b in enumerate(to_delete):
+            try:
+                self.client.blocks.delete(b["id"])
+            except Exception as exc:
+                logger.warning("Could not delete block %s: %s", b["id"], exc)
+            if (i + 1) % 10 == 0:
+                time.sleep(0.5)
+
+        logger.info(
+            "  Deleted %d content blocks (kept %d child blocks).",
+            len(to_delete),
+            len(all_existing) - len(to_delete),
+        )
+
+        # Append dashboard blocks
+        self.client.blocks.children.append(MAIN_PAGE_ID, children=blocks)
+        logger.info("✅ Main page dashboard updated with %d blocks.", len(blocks))
 
     # -------------------------------------------------------------------
     # 2. Update Roadmap DB — set statuses based on real progress
