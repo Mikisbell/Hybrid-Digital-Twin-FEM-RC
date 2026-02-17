@@ -159,6 +159,8 @@ class FactoryConfig:
     scale_period_range: tuple[float, float] = (0.2, 2.0)
     max_scale_factor: float = 5.0
     nltha_config: NLTHAConfig = field(default_factory=NLTHAConfig)
+    n_stories: int = 5
+    n_bays: int = 3
     n_workers: int = 1
     seed: int = 42
 
@@ -193,71 +195,99 @@ def parse_at2(filepath: str | Path) -> tuple[np.ndarray, float, dict[str, str]]:
     filepath = Path(filepath)
     header_info: dict[str, str] = {"filename": filepath.name}
 
-    with open(filepath) as f:
-        lines = f.readlines()
+    with open(filepath, errors="replace") as f:
+        # Read first 50 lines to cover header and start of data
+        lines = [f.readline() for _ in range(50)]
+        # Read the rest if needed later, but usually not for header parsing
 
     if len(lines) < 4:
         raise ValueError(f"AT2 file too short: {filepath}")
 
-    # Parse header
-    header_info["description"] = lines[0].strip()
-    header_info["supplementary"] = lines[1].strip()
+    # Parse header - search for NPTS and DT
+    npts = 0
+    dt = 0.0
+    found_header = False
+    header_end_line = 0
 
-    # Line 3: "NPTS= XXXX, DT= X.XXXXX SEC" (various formats)
-    npts_dt_line = lines[2].strip()
-    header_info["npts_dt_line"] = npts_dt_line
+    for i, line in enumerate(lines[:10]):  # Check first 10 lines
+        if "NPTS" in line.upper() and ("DT" in line.upper() or "SEC" in line.upper()):
+            npts_match = re.search(r"NPTS\s*=?\s*(\d+)", line, re.IGNORECASE)
+            dt_match = re.search(r"DT\s*=?\s*([\d.Ee+-]+)", line, re.IGNORECASE)
+            
+            if not npts_match or not dt_match:
+                 # Try alternative format: "  XXXX   X.XXXXX   NPTS, DT"
+                alt_match = re.match(r"\s*(\d+)\s+([\d.Ee+-]+)", line.strip())
+                if alt_match:
+                     npts = int(alt_match.group(1))
+                     dt = float(alt_match.group(2))
+                     found_header = True
+                     header_end_line = i
+                     break
+            else:
+                npts = int(npts_match.group(1))
+                dt = float(dt_match.group(1))
+                found_header = True
+                header_end_line = i
+                break
 
-    # Extract NPTS and DT using regex (handles multiple PEER formats)
-    npts_match = re.search(r"NPTS\s*=?\s*(\d+)", npts_dt_line, re.IGNORECASE)
-    dt_match = re.search(r"DT\s*=?\s*([\d.Ee+-]+)", npts_dt_line, re.IGNORECASE)
-
-    if not npts_match or not dt_match:
-        # Try alternative format: "  XXXX   X.XXXXX   NPTS, DT"
-        alt_match = re.match(r"\s*(\d+)\s+([\d.Ee+-]+)", npts_dt_line)
-        if alt_match:
-            npts = int(alt_match.group(1))
-            dt = float(alt_match.group(2))
-        else:
-            raise ValueError(f"Cannot parse NPTS/DT from: '{npts_dt_line}' in {filepath}")
-    else:
-        npts = int(npts_match.group(1))
-        dt = float(dt_match.group(1))
+    if not found_header:
+         raise ValueError(f"Cannot parse NPTS/DT from header in {filepath}")
 
     header_info["npts"] = str(npts)
     header_info["dt"] = str(dt)
 
-    # Detect units from line 4 or header
-    units_line = lines[3].strip().lower() if len(lines) > 3 else ""
-    if "cm/sec" in units_line or "cm/s" in units_line:
-        header_info["units"] = "cm/s2"
-    elif "g" in units_line or "gal" in units_line.lower():
-        header_info["units"] = "g"
-    else:
-        # Default assumption: acceleration in g
-        header_info["units"] = "g"
+    # Detect units - typically on the line BEFORE or AFTER the NPTS line
+    # PEER standard: Unit line is usually line 3 (index 2) or line 4 (index 3)
+    # We'll just search for typical unit strings in the header
+    units_found = "g" # Default
+    for line in lines[:header_end_line+1]:
+        lower_line = line.lower()
+        if "cm/sec" in lower_line or "cm/s" in lower_line:
+            units_found = "cm/s2"
+            break # High confidence
+        elif "in/sec" in lower_line or "in/s" in lower_line:
+            units_found = "in/s2"
+        elif "g" in lower_line or "gal" in lower_line:
+             # Be careful not to match 'g' in text like 'Strong Motion'
+             if re.search(r"\bunits\s+of\s+g\b", lower_line) or re.search(r"\bg\b", lower_line):
+                units_found = "g"
 
-    # Parse data values (skip header lines, typically 4)
-    data_start = 4
-    # Some AT2 files have variable header length — find first numeric line
-    for i in range(2, min(10, len(lines))):
+    header_info["units"] = units_found
+
+    # Parse data values (skip header lines)
+    # Data starts after the header line. Typically next line.
+    data_start = header_end_line + 1
+    
+    # Verify data start by checking if line is numeric
+    for i in range(data_start, min(data_start + 5, len(lines))):
         try:
-            float(lines[i].split()[0])
-            data_start = i
-            break
-        except (ValueError, IndexError):
+             # split and check first token
+             parts = lines[i].split()
+             if parts:
+                 float(parts[0])
+                 data_start = i
+                 break
+        except ValueError:
             continue
+            
+    # Now read all lines (re-open to read full file properly or use existing buffer?)
+    # Easier to re-read everything and skip
+    with open(filepath, errors="replace") as f:
+        all_lines = f.readlines()
 
     values: list[float] = []
-    for line in lines[data_start:]:
+    for line in all_lines[data_start:]:
         for token in line.split():
             try:
                 values.append(float(token))
             except ValueError:
                 continue
 
-    acceleration = np.array(values[:npts])
-
-    if len(acceleration) < npts:
+    acceleration = np.array(values)
+    # Truncate to NPTS if we have more, or warn if less
+    if len(acceleration) > npts:
+        acceleration = acceleration[:npts]
+    elif len(acceleration) < npts:
         logger.warning(
             "AT2 %s: expected %d points, got %d",
             filepath.name,
@@ -468,64 +498,76 @@ def compute_response_spectrum(
     Nigam, N.C. and Jennings, P.C. (1969). "Calculation of response spectra
     from strong-motion earthquake records." Bull. Seismol. Soc. Am., 59(2).
     """
-    sa = np.zeros(len(periods))
+    # Vectorized implementation of Nigam-Jennings (1969)
+    # Vectors over periods (shape: [num_periods])
+    
+    # Handle zero/negative periods: max(abs(acc))
+    valid_mask = periods > 0
+    sa = np.zeros_like(periods)
+    sa[~valid_mask] = np.max(np.abs(acc))
+    
+    if not np.any(valid_mask):
+        return sa
+        
+    t = periods[valid_mask]
+    omega = 2.0 * np.pi / t
+    omega2 = omega**2
+    xi = damping
+    omega_d = omega * np.sqrt(1.0 - xi**2)
+    xi_omega = xi * omega
+
+    # Precompute coefficients (vectorized over periods)
+    exp_term = np.exp(-xi_omega * dt)
+    cos_d = np.cos(omega_d * dt)
+    sin_d = np.sin(omega_d * dt)
+
+    a11 = exp_term * (cos_d + (xi_omega / omega_d) * sin_d)
+    a12 = exp_term * sin_d / omega_d
+    a21 = -omega2 * a12
+    a22 = exp_term * (cos_d - (xi_omega / omega_d) * sin_d)
+
+    one_over_omega2 = 1.0 / omega2
+    t1 = (2.0 * xi**2 - 1.0) / (omega2 * dt)
+    t2 = 2.0 * xi / (omega**3 * dt)
+
+    b11 = exp_term * ((t1 + xi / omega) * sin_d / omega_d + (t2 + one_over_omega2) * cos_d) - t2
+    b12 = -(exp_term * (t1 * sin_d / omega_d + t2 * cos_d)) - one_over_omega2 + t2
+    b21 = exp_term * (
+        (t1 + xi / omega) * (cos_d - xi_omega * sin_d / omega_d)
+        - (t2 + one_over_omega2) * (omega_d * sin_d + xi_omega * cos_d)
+    ) + 1.0 / (omega2 * dt)
+    b22 = -exp_term * (
+        t1 * (cos_d - xi_omega * sin_d / omega_d) - t2 * (omega_d * sin_d + xi_omega * cos_d)
+    ) - 1.0 / (omega2 * dt)
+
+    # Initialize state vectors [num_valid_periods]
+    u = np.zeros_like(t)
+    v = np.zeros_like(t)
+    sd_max = np.zeros_like(t)
+
+    # Time-stepping loop (vectorized over periods)
+    # We still loop over time, but do all periods at once
     n = len(acc)
+    p = -acc # Excitation array
+    
+    for j in range(n - 1):
+        p_j = p[j]
+        p_j1 = p[j+1]
+        
+        # Update state
+        u_new = a11 * u + a12 * v + b11 * p_j + b12 * p_j1
+        v_new = a21 * u + a22 * v + b21 * p_j + b22 * p_j1
+        
+        u = u_new
+        v = v_new
+        
+        # Track max displacement
+        abs_u = np.abs(u)
+        mask_update = abs_u > sd_max
+        sd_max[mask_update] = abs_u[mask_update]
 
-    for i, t in enumerate(periods):
-        if t <= 0:
-            sa[i] = np.max(np.abs(acc))
-            continue
-
-        omega = 2.0 * np.pi / t
-        omega2 = omega * omega
-        xi = damping
-        omega_d = omega * np.sqrt(1.0 - xi**2)
-        xi_omega = xi * omega
-
-        exp_term = np.exp(-xi_omega * dt)
-        cos_d = np.cos(omega_d * dt)
-        sin_d = np.sin(omega_d * dt)
-
-        # Nigam-Jennings recurrence coefficients for piecewise-linear load
-        # Homogeneous part
-        a11 = exp_term * (cos_d + (xi_omega / omega_d) * sin_d)
-        a12 = exp_term * sin_d / omega_d
-        a21 = -omega2 * a12  # = -ω² exp sin/ωd
-        a22 = exp_term * (cos_d - (xi_omega / omega_d) * sin_d)
-
-        # Particular-solution coefficients for p(τ) = p_j + (p_{j+1}-p_j)/dt * τ
-        # These account for the linear interpolation of excitation within [t_j, t_{j+1}].
-        one_over_omega2 = 1.0 / omega2
-        t1 = (2.0 * xi**2 - 1.0) / (omega2 * dt)
-        t2 = 2.0 * xi / (omega**3 * dt)
-
-        b11 = exp_term * ((t1 + xi / omega) * sin_d / omega_d + (t2 + one_over_omega2) * cos_d) - t2
-        b12 = -(exp_term * (t1 * sin_d / omega_d + t2 * cos_d)) - one_over_omega2 + t2
-        b21 = exp_term * (
-            (t1 + xi / omega) * (cos_d - xi_omega * sin_d / omega_d)
-            - (t2 + one_over_omega2) * (omega_d * sin_d + xi_omega * cos_d)
-        ) + 1.0 / (omega2 * dt)
-        b22 = -exp_term * (
-            t1 * (cos_d - xi_omega * sin_d / omega_d) - t2 * (omega_d * sin_d + xi_omega * cos_d)
-        ) - 1.0 / (omega2 * dt)
-
-        # Time-step through the record
-        u = 0.0
-        v = 0.0
-        sd = 0.0
-
-        for j in range(n - 1):
-            p_j = -acc[j]  # SDOF convention: excitation = -m·ag, per unit mass = -ag
-            p_j1 = -acc[j + 1]
-            u_new = a11 * u + a12 * v + b11 * p_j + b12 * p_j1
-            v_new = a21 * u + a22 * v + b21 * p_j + b22 * p_j1
-            u = u_new
-            v = v_new
-            if abs(u) > sd:
-                sd = abs(u)
-
-        # Pseudo-acceleration: Sa = ω² × Sd
-        sa[i] = sd * omega2
+    # Pseudo-acceleration: Sa = ω² * Sd
+    sa[valid_mask] = sd_max * omega2
 
     return sa
 
@@ -1085,8 +1127,8 @@ class DataFactory:
             ground_motions=self.gm_records,
             model_builder=_build_fresh_model,
             config=self.config.nltha_config,
-            n_stories=5,
-            n_bays=3,
+            n_stories=self.config.n_stories,
+            n_bays=self.config.n_bays,
         )
 
     def _report_gm_stats(self) -> None:

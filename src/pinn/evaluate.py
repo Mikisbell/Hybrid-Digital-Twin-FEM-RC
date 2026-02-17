@@ -33,10 +33,25 @@ from src.utils.figure_manager import FigureManager
 
 logger = logging.getLogger(__name__)
 
-STORY_LABELS = ["Story 1", "Story 2", "Story 3", "Story 4", "Story 5"]
+import argparse
+
+def _story_labels(n: int) -> list[str]:
+    """Generate story labels dynamically."""
+    return [f"Story {i}" for i in range(1, n + 1)]
 PROCESSED_DIR = Path("data/processed")
-MODELS_DIR = Path("data/models")
 FIG_DIR = Path("manuscript/figures")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Evaluate HybridPINN model")
+    parser.add_argument(
+        "--model-dir",
+        type=Path,
+        default=Path("data/models"),
+        help="Directory containing trained model checkpoints",
+    )
+    return parser.parse_args()
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -64,18 +79,18 @@ def _load_test_data() -> tuple[torch.Tensor, torch.Tensor]:
     return data["x"], data["y"]
 
 
-def _load_model() -> HybridPINN:
+def _load_model(models_dir: Path) -> HybridPINN:
     """Load the best checkpoint."""
-    ckpt_path = MODELS_DIR / "pinn_best.pt"
+    ckpt_path = models_dir / "pinn_best.pt"
     model = HybridPINN.from_checkpoint(ckpt_path)
     model.eval()
     logger.info("Loaded model from %s", ckpt_path)
     return model
 
 
-def _load_history() -> dict:
+def _load_history(models_dir: Path) -> dict:
     """Load training history."""
-    with open(MODELS_DIR / "train_history.json") as f:
+    with open(models_dir / "train_history.json") as f:
         return json.load(f)
 
 
@@ -164,9 +179,13 @@ def plot_pred_vs_actual(
     y_pred: np.ndarray,
     metrics: dict,
     fm: FigureManager,
+    story_labels: list[str] | None = None,
 ) -> None:
     """Figure 5: Predicted vs. actual peak IDR scatter."""
-    fig, axes = plt.subplots(1, 5, figsize=(14, 3.0), sharey=True)
+    n_stories = y_true.shape[1]
+    if story_labels is None:
+        story_labels = _story_labels(n_stories)
+    fig, axes = plt.subplots(1, n_stories, figsize=(2.8 * n_stories, 3.0), sharey=True)
 
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 
@@ -188,7 +207,7 @@ def plot_pred_vs_actual(
         ax.set_xlabel("Actual IDR (%)")
         if i == 0:
             ax.set_ylabel("Predicted IDR (%)")
-        ax.set_title(STORY_LABELS[i], fontsize=9)
+        ax.set_title(story_labels[i], fontsize=9)
         ax.set_xlim(left=0)
         ax.set_ylim(bottom=0)
 
@@ -224,8 +243,12 @@ def plot_error_distribution(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     fm: FigureManager,
+    story_labels: list[str] | None = None,
 ) -> None:
     """Figure 6: Per-story error distribution (box plot)."""
+    n_stories = y_true.shape[1]
+    if story_labels is None:
+        story_labels = _story_labels(n_stories)
     fig, ax = plt.subplots(figsize=FigureManager.DOUBLE_COLUMN)
 
     # Percentage error per story
@@ -234,7 +257,7 @@ def plot_error_distribution(
 
     bp = ax.boxplot(
         error_list,
-        tick_labels=STORY_LABELS,
+        tick_labels=story_labels,
         patch_artist=True,
         widths=0.5,
         medianprops={"color": "black", "linewidth": 1.5},
@@ -275,9 +298,13 @@ def main() -> None:
     )
 
     # Load data and model
+    args = parse_args()
+    model_dir = args.model_dir
+
+    # Load data and model
     x_test, y_test_norm = _load_test_data()
-    model = _load_model()
-    history = _load_history()
+    model = _load_model(model_dir)
+    history = _load_history(model_dir)
     mean, std = _load_scaler()
 
     # Predict
@@ -292,13 +319,16 @@ def main() -> None:
     # Metrics
     metrics = compute_metrics(y_true, y_pred)
 
+    n_stories = y_true.shape[1]
+    story_labels = _story_labels(n_stories)
+
     logger.info("=" * 60)
     logger.info("TEST SET EVALUATION (N=%d)", y_true.shape[0])
     logger.info("=" * 60)
-    for i in range(5):
+    for i in range(n_stories):
         logger.info(
             "  %s: RMSE = %.5f (%.3f%%)  R² = %.4f",
-            STORY_LABELS[i],
+            story_labels[i],
             metrics["rmse_per_story"][i],
             metrics["rmse_per_story"][i] * 100,
             metrics["r2_per_story"][i],
@@ -313,7 +343,8 @@ def main() -> None:
     logger.info("=" * 60)
 
     # Save metrics to JSON
-    metrics_path = MODELS_DIR / "test_metrics.json"
+    # Save metrics to JSON
+    metrics_path = model_dir / "test_metrics.json"
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
     logger.info("Metrics saved to %s", metrics_path)
@@ -322,8 +353,8 @@ def main() -> None:
     fm = FigureManager(output_dir=str(FIG_DIR), dpi=300)
 
     plot_loss_curves(history, fm)
-    plot_pred_vs_actual(y_true, y_pred, metrics, fm)
-    plot_error_distribution(y_true, y_pred, fm)
+    plot_pred_vs_actual(y_true, y_pred, metrics, fm, story_labels)
+    plot_error_distribution(y_true, y_pred, fm, story_labels)
 
     logger.info("Publication figures saved to %s", FIG_DIR)
 

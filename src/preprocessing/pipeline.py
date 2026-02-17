@@ -487,8 +487,8 @@ class NLTHAPipeline:
                 g = 9.81
                 # Recalculate manually to avoid dependency on internal state if needed
                 # or just use logic:
-                for story in range(1, 6):
-                    udl = loads.beam_udl(story, 5)
+                for story in range(1, frame.n_stories + 1):
+                    udl = loads.beam_udl(story, frame.n_stories)
                     floor_weight = udl * frame.total_width
                     floor_mass = floor_weight / g  # tonnes
                     floor_masses.append(floor_mass)
