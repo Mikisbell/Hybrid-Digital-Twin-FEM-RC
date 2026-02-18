@@ -82,3 +82,16 @@ El sistema está validado técnicamente. Para el manuscrito final, se recomienda
 
 1.  **Ejecución Masiva:** Dejar corriendo `data_factory.py` durante la noche para completar los 299 registros.
 2.  **Re-entrenamiento:** Entrenar la PINN con el dataset completo. Se espera que el $R^2$ suba a rangos de $0.75 - 0.85$.
+
+## 6. Calidad de Código y Mejores Prácticas
+
+El desarrollo se adhirió a los estándares definidos en los skills internos del proyecto (`~/.gemini/antigravity/skills`):
+
+1.  **Python Best Practices (`python-best-practices`)**:
+    - **Desarrollo Orientado a Tipos**: Uso extensivo de `dataclasses` y type hints.
+    - **Linting & Formato**: Cumplimiento de PEP-8 verificado vía `pre-commit` (`ruff`, `isort`).
+    - **Análisis Estático**: Corrección de patrones anti-pattern (e.g., SIM108) mediante auditoría automatizada.
+
+2.  **Git Workflow (`git-workflow`)**:
+    - **Conventional Commits**: Historial estructurado (`feat`, `fix`, `style`) para trazabilidad.
+    - **Commits Atómicos**: Separación lógica de cambios funcionales, de estilo y de documentación.

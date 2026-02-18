@@ -1,5 +1,5 @@
 {
-  "created": "2026-02-17T02:58:38.394495+00:00",
+  "created": "2026-02-17T05:36:09.052237+00:00",
   "config": {
     "raw_dir": "data/raw",
     "out_dir": "data/processed",
@@ -26,11 +26,10 @@
   },
   "n_records_raw": 20,
   "n_records_valid": 20,
-  "n_samples_augmented": 228,
   "split_sizes": {
     "train": 159,
     "val": 34,
     "test": 35
   },
-  "exported": "2026-02-17T02:58:39.230424+00:00"
+  "exported": "2026-02-17T05:36:10.916525+00:00"
 }
