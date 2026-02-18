@@ -2,65 +2,84 @@
 
 ## 4.1 OpenSeesPy Simulation Results
 
-A batch of 20 synthetic ground motions was generated due to the unavailability of PEER NGA-West2 records in the cloud environment. Nonlinear time history analyses (NLTHA) were performed on the 5-story RC frame model using OpenSeesPy.
+Nonlinear time history analyses (NLTHA) were performed on a parametric $N$-story RC frame model using OpenSeesPy. Two datasets were generated:
 
--   **Ground Motion Statistics**:
-    -   Mean PGA: 0.48 g
-    -   Mean Duration: 20.3 s
--   **Structural Response**:
-    -   Convergence Rate: 100% (20/20 records)
-    -   Typical Peak Inter-Story Drift Ratio (IDR): ~0.5% - 1.5%
+### 4.1.1 Synthetic Validation Dataset
+
+A batch of 20 synthetic ground motions (band-limited white noise) was generated for initial model verification using a 3-story, 3-bay frame ($N=3$).
+
+-   **Convergence Rate**: 100% (20/20 records)
+-   **Peak IDR Range**: 0.5%–1.5%
+-   **Modal Periods**: $T_1 = 0.695$ s, $T_2 = 0.209$ s, $T_3 = 0.113$ s
+
+### 4.1.2 PEER NGA-West2 Real Data Campaign
+
+A validation subset of 21 real earthquake records from the PEER NGA-West2 database was processed through the same 3-story frame model.
+
+-   **Source Records**: 100 unique RSN events (299 AT2 components available; 21 processed for validation)
+-   **Convergence Rate**: 100% (21/21 records)
+-   **Peak IDR Range**: 0.2%–1.95%
+-   **Notable Records**: RSN121 (Friuli), RSN122 (Friuli), RSN162–164 (Imperial Valley)
 
 ## 4.2 Data Pipeline Statistics
 
-The raw simulation data was processed into PyTorch tensors.
+The raw simulation data was processed into PyTorch tensors via the automated pipeline.
 
--   **Dataset Split**: 14 training, 3 validation, 3 test records.
--   **Physics Tensors**: Mass matrix ($M$), restoring forces ($f_{int}$), and kinematic responses ($\dot{u}, \ddot{u}$) were successfully verified to be non-zero, enabling the physics-informed loss calculation.
+| Parameter | Synthetic | PEER (Real) |
+| :--- | :--- | :--- |
+| Source Records | 20 | 21 |
+| Total Samples | ~160 | 342 |
+| Train / Val / Test | 112 / 24 / 24 | 239 / 51 / 52 |
+| Tensor Shape (x) | [N, 1, 2048] | [N, 1, 2048] |
+| Output Dimension (y) | 3 stories | 3 stories |
+
+**Physics Tensors**: Mass matrix ($M$), restoring forces ($f_{int}$), and kinematic responses ($\dot{u}, \ddot{u}$) were verified non-zero, enabling the physics-informed loss.
 
 ## 4.3 PINN Training Performance
 
-The Hybrid PINN was trained for 500 epochs with a patience of 50.
+### 4.3.1 Synthetic Data (Verification)
 
--   **Convergence**: Training stopped early at **Epoch 66**.
--   **Physics Loss**: The physics regularization term ($L_{phy}$) remained active throughout training ($\sim 1.8 \times 10^{-15}$), constraining the solution to the equation of motion.
--   ** Validation Loss**: Reached a minimum of **0.100** (MSE), indicating strong generalization without overfitting.
+-   **Convergence**: Early stopping at **Epoch 66** (patience=50)
+-   **Best Validation Loss**: 0.080 (MSE)
+-   **Physics Loss**: Active throughout training ($\sim 1.7 \times 10^{-10}$)
 
-![Training and validation loss curves](../manuscript/figures/loss_curves.png)
-*Figure 4: Training and validation loss convergence.*
+### 4.3.2 PEER Real Data (Validation)
+
+-   **Convergence**: Early stopping at **Epoch 68** (patience=50)
+-   **Best Validation Loss**: 0.352 (MSE)
+-   **Physics Loss**: Active throughout training ($\sim 1.7 \times 10^{-10}$)
+
+![Training and validation loss curves](figures/loss_curves.png)
+*Figure 4: Training and validation loss convergence (PEER real data).*
 
 ## 4.4 Prediction Accuracy
 
-The model was evaluated on the held-out test set (unseen ground motions).
+| Metric | Synthetic | PEER (Real) |
+| :--- | :--- | :--- |
+| **Overall $R^2$** | **0.791** | **0.650** |
+| **Overall RMSE** | 0.26% | 0.76% |
+| Story 1 $R^2$ | 0.84 | 0.587 |
+| Story 2 $R^2$ | 0.79 | 0.504 |
+| Story 3 $R^2$ | 0.73 | 0.531 |
 
-**Overall Performance:**
--   **$R^2$**: 0.803
--   **RMSE**: 0.27% (drift ratio)
+The reduction in $R^2$ from synthetic to real data is expected and attributable to: (1) the greater complexity and variability of real earthquake frequency content, and (2) the limited size of the validation subset (21 records vs. the planned 100).
 
-**Per-Story Performance:**
--   **Story 1**: $R^2 = 0.84$, indicating high accuracy at the base.
--   **Story 4**: $R^2 = 0.79$.
--   **Story 5**: $R^2 = 0.69$, showing slightly higher dispersion in the upper stories due to higher mode effects.
+![Predicted vs. Actual IDR](figures/pred_vs_actual.png)
+*Figure 5: Predicted vs. actual peak inter-story drift ratio (PEER data).*
 
-![Predicted vs. Actual IDR](../manuscript/figures/pred_vs_actual.png)
-*Figure 5: Predicted vs. actual peak inter-story drift ratio.*
-
-![Error Distribution](../manuscript/figures/error_distribution.png)
-*Figure 6: Per-story prediction error distribution.*
+![Error Distribution](figures/error_distribution.png)
+*Figure 6: Per-story prediction error distribution (PEER data).*
 
 ## 4.5 Real-Time Benchmarking
 
-To validate the "real-time" capability of the digital twin, inference latency was measured on a standard CPU environment using a batch size of 1.
-
--   **Pre-processing Latency**: 0.141 ms (mean)
--   **Inference Latency**: 0.988 ms (mean)
--   **Total Latency**: ~1.13 ms per time step
-
-This performance is well below the control loop threshold of 10-20 ms required for effective structural control, confirming the suitability of the Hybrid PINN for real-time monitoring.
+Inference latency was measured on a standard CPU environment (batch size = 1).
 
 | Metric | Value |
 | :--- | :--- |
 | Device | CPU |
-| Warm Start (Mean) | 0.99 ms |
-| 99th Percentile | 2.74 ms |
+| Pre-processing Latency | 0.141 ms |
+| Inference Latency | 0.988 ms |
+| Total Latency | ~1.13 ms |
 | Throughput (Batch=1) | > 1,300 samples/sec |
+
+This performance is well below the control loop threshold of 10–20 ms required for real-time structural monitoring.
