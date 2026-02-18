@@ -28,8 +28,8 @@ The raw simulation data was processed into PyTorch tensors via the automated pip
 | Parameter | Synthetic | PEER (Real) |
 | :--- | :--- | :--- |
 | Source Records | 20 | 21 |
-| Total Samples | ~160 | 342 |
-| Train / Val / Test | 112 / 24 / 24 | 239 / 51 / 52 |
+| Total Samples | 228 | 342 |
+| Train / Val / Test | 159 / 34 / 35 | 239 / 51 / 52 |
 | Tensor Shape (x) | [N, 1, 2048] | [N, 1, 2048] |
 | Output Dimension (y) | 3 stories | 3 stories |
 
@@ -41,13 +41,13 @@ The raw simulation data was processed into PyTorch tensors via the automated pip
 
 -   **Convergence**: Early stopping at **Epoch 66** (patience=50)
 -   **Best Validation Loss**: 0.080 (MSE)
--   **Physics Loss**: Active throughout training ($\sim 1.7 \times 10^{-10}$)
+-   **Physics Loss**: Active throughout training ($\sim 1.9 \times 10^{-15}$)
 
 ### 4.3.2 PEER Real Data (Validation)
 
 -   **Convergence**: Early stopping at **Epoch 68** (patience=50)
 -   **Best Validation Loss**: 0.352 (MSE)
--   **Physics Loss**: Active throughout training ($\sim 1.7 \times 10^{-10}$)
+-   **Physics Loss**: Active throughout training ($\sim 1.9 \times 10^{-15}$)
 
 ![Training and validation loss curves](figures/loss_curves.png)
 *Figure 4: Training and validation loss convergence (PEER real data).*
@@ -58,9 +58,9 @@ The raw simulation data was processed into PyTorch tensors via the automated pip
 | :--- | :--- | :--- |
 | **Overall $R^2$** | **0.791** | **0.650** |
 | **Overall RMSE** | 0.26% | 0.76% |
-| Story 1 $R^2$ | 0.84 | 0.587 |
-| Story 2 $R^2$ | 0.79 | 0.504 |
-| Story 3 $R^2$ | 0.73 | 0.531 |
+| Story 1 $R^2$ | 0.645 | 0.587 |
+| Story 2 $R^2$ | 0.830 | 0.504 |
+| Story 3 $R^2$ | 0.827 | 0.531 |
 
 The reduction in $R^2$ from synthetic to real data is expected and attributable to: (1) the greater complexity and variability of real earthquake frequency content, and (2) the limited size of the validation subset (21 records vs. the planned 100).
 

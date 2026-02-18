@@ -2,7 +2,7 @@
 
 ## 5.1 Interpretation of Results
 
-The Hybrid PINN demonstrated effective predictive capability across two distinct datasets: synthetic ground motions ($R^2 = 0.791$) and real PEER NGA-West2 records ($R^2 = 0.650$). The physics-based regularization term ($L_{phy} \sim 10^{-10}$) constrained predictions to physically valid solutions in both cases, acting as an inductive bias that compensates for limited training data.
+The Hybrid PINN demonstrated effective predictive capability across two distinct datasets: synthetic ground motions ($R^2 = 0.791$) and real PEER NGA-West2 records ($R^2 = 0.650$). The physics-based regularization term ($L_{phy} \sim 10^{-15}$) constrained predictions to physically valid solutions in both cases, acting as an inductive bias that compensates for limited training data.
 
 ### Synthetic vs. Real Data Performance
 
@@ -13,7 +13,7 @@ The performance gap between synthetic ($R^2 = 0.79$) and real data ($R^2 = 0.65$
 
 ### Per-Story Accuracy
 
-The per-story analysis reveals that Story 1 ($R^2 = 0.587$ for PEER data) captures the dominant first-mode response, while upper stories show comparable accuracy (Story 3: $R^2 = 0.531$). The relatively uniform accuracy distribution across stories suggests the model captures the fundamental physics of inter-story drift propagation.
+The per-story analysis reveals an interesting pattern: for synthetic data, the upper stories (Story 2: $R^2 = 0.830$, Story 3: $R^2 = 0.827$) outperform Story 1 ($R^2 = 0.645$), suggesting the model captures higher-mode drift amplification effectively. For PEER data, all stories show comparable accuracy ($R^2 \approx 0.50$–$0.59$), with the first story performing slightly better ($R^2 = 0.587$). The relatively uniform accuracy distribution across stories in the real data case suggests consistent learning of drift physics.
 
 ## 5.2 Comparison with Existing Methods
 

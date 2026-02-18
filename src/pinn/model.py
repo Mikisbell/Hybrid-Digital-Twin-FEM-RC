@@ -75,7 +75,7 @@ class PINNConfig:
     """
 
     seq_len: int = 2048
-    n_stories: int = 5
+    n_stories: int = 3
     enc_channels: tuple[int, ...] = (32, 64, 128)
     enc_kernels: tuple[int, ...] = (7, 5, 3)
     pool_size: int = 16
