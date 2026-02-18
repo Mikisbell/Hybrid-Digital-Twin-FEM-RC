@@ -213,16 +213,16 @@ def parse_at2(filepath: str | Path) -> tuple[np.ndarray, float, dict[str, str]]:
         if "NPTS" in line.upper() and ("DT" in line.upper() or "SEC" in line.upper()):
             npts_match = re.search(r"NPTS\s*=?\s*(\d+)", line, re.IGNORECASE)
             dt_match = re.search(r"DT\s*=?\s*([\d.Ee+-]+)", line, re.IGNORECASE)
-            
+
             if not npts_match or not dt_match:
-                 # Try alternative format: "  XXXX   X.XXXXX   NPTS, DT"
+                # Try alternative format: "  XXXX   X.XXXXX   NPTS, DT"
                 alt_match = re.match(r"\s*(\d+)\s+([\d.Ee+-]+)", line.strip())
                 if alt_match:
-                     npts = int(alt_match.group(1))
-                     dt = float(alt_match.group(2))
-                     found_header = True
-                     header_end_line = i
-                     break
+                    npts = int(alt_match.group(1))
+                    dt = float(alt_match.group(2))
+                    found_header = True
+                    header_end_line = i
+                    break
             else:
                 npts = int(npts_match.group(1))
                 dt = float(dt_match.group(1))
@@ -231,7 +231,7 @@ def parse_at2(filepath: str | Path) -> tuple[np.ndarray, float, dict[str, str]]:
                 break
 
     if not found_header:
-         raise ValueError(f"Cannot parse NPTS/DT from header in {filepath}")
+        raise ValueError(f"Cannot parse NPTS/DT from header in {filepath}")
 
     header_info["npts"] = str(npts)
     header_info["dt"] = str(dt)
@@ -239,17 +239,17 @@ def parse_at2(filepath: str | Path) -> tuple[np.ndarray, float, dict[str, str]]:
     # Detect units - typically on the line BEFORE or AFTER the NPTS line
     # PEER standard: Unit line is usually line 3 (index 2) or line 4 (index 3)
     # We'll just search for typical unit strings in the header
-    units_found = "g" # Default
-    for line in lines[:header_end_line+1]:
+    units_found = "g"  # Default
+    for line in lines[: header_end_line + 1]:
         lower_line = line.lower()
         if "cm/sec" in lower_line or "cm/s" in lower_line:
             units_found = "cm/s2"
-            break # High confidence
+            break  # High confidence
         elif "in/sec" in lower_line or "in/s" in lower_line:
             units_found = "in/s2"
         elif "g" in lower_line or "gal" in lower_line:
-             # Be careful not to match 'g' in text like 'Strong Motion'
-             if re.search(r"\bunits\s+of\s+g\b", lower_line) or re.search(r"\bg\b", lower_line):
+            # Be careful not to match 'g' in text like 'Strong Motion'
+            if re.search(r"\bunits\s+of\s+g\b", lower_line) or re.search(r"\bg\b", lower_line):
                 units_found = "g"
 
     header_info["units"] = units_found
@@ -257,19 +257,19 @@ def parse_at2(filepath: str | Path) -> tuple[np.ndarray, float, dict[str, str]]:
     # Parse data values (skip header lines)
     # Data starts after the header line. Typically next line.
     data_start = header_end_line + 1
-    
+
     # Verify data start by checking if line is numeric
     for i in range(data_start, min(data_start + 5, len(lines))):
         try:
-             # split and check first token
-             parts = lines[i].split()
-             if parts:
-                 float(parts[0])
-                 data_start = i
-                 break
+            # split and check first token
+            parts = lines[i].split()
+            if parts:
+                float(parts[0])
+                data_start = i
+                break
         except ValueError:
             continue
-            
+
     # Now read all lines (re-open to read full file properly or use existing buffer?)
     # Easier to re-read everything and skip
     with open(filepath, errors="replace") as f:
@@ -500,15 +500,15 @@ def compute_response_spectrum(
     """
     # Vectorized implementation of Nigam-Jennings (1969)
     # Vectors over periods (shape: [num_periods])
-    
+
     # Handle zero/negative periods: max(abs(acc))
     valid_mask = periods > 0
     sa = np.zeros_like(periods)
     sa[~valid_mask] = np.max(np.abs(acc))
-    
+
     if not np.any(valid_mask):
         return sa
-        
+
     t = periods[valid_mask]
     omega = 2.0 * np.pi / t
     omega2 = omega**2
@@ -548,19 +548,19 @@ def compute_response_spectrum(
     # Time-stepping loop (vectorized over periods)
     # We still loop over time, but do all periods at once
     n = len(acc)
-    p = -acc # Excitation array
-    
+    p = -acc  # Excitation array
+
     for j in range(n - 1):
         p_j = p[j]
-        p_j1 = p[j+1]
-        
+        p_j1 = p[j + 1]
+
         # Update state
         u_new = a11 * u + a12 * v + b11 * p_j + b12 * p_j1
         v_new = a21 * u + a22 * v + b21 * p_j + b22 * p_j1
-        
+
         u = u_new
         v = v_new
-        
+
         # Track max displacement
         abs_u = np.abs(u)
         mask_update = abs_u > sd_max
@@ -1011,13 +1011,17 @@ def _generate_synthetic_suite(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _build_fresh_model() -> None:
+def _build_fresh_model(n_stories: int = 5, n_bays: int = 3) -> None:
     """Build a clean RC frame model for each NLTHA run.
 
     Called by the batch runner before each analysis to ensure
     a pristine model state (no residual displacements/forces).
     """
-    model = RCFrameModel()
+    from src.opensees_analysis.ospy_model import FrameGeometry, ModelConfig
+
+    frame_cfg = FrameGeometry(n_stories=n_stories, n_bays=n_bays)
+    model_cfg = ModelConfig(frame=frame_cfg)
+    model = RCFrameModel(config=model_cfg)
     model.build()
     model.apply_gravity()
     model.setup_rayleigh_damping()
@@ -1121,11 +1125,23 @@ class DataFactory:
 
         Rebuilds the model before each run for clean state.
         """
+        from functools import partial
+
         from src.opensees_analysis.nltha_runner import run_batch
+
+        # Ensure NLTHA config inherits the factory's output directory
+        self.config.nltha_config.output_dir = self.config.output_dir
+
+        # Bind n_stories/n_bays so the builder creates the correct frame
+        builder = partial(
+            _build_fresh_model,
+            n_stories=self.config.n_stories,
+            n_bays=self.config.n_bays,
+        )
 
         return run_batch(
             ground_motions=self.gm_records,
-            model_builder=_build_fresh_model,
+            model_builder=builder,
             config=self.config.nltha_config,
             n_stories=self.config.n_stories,
             n_bays=self.config.n_bays,
@@ -1324,13 +1340,21 @@ def main() -> None:
         default=0.6,
         help="ASCE 7-22 SD1 (default: 0.6g)",
     )
+    parser.add_argument(
+        "--n-stories",
+        type=int,
+        default=5,
+        help="Number of building stories (default: 5)",
+    )
     args = parser.parse_args()
 
     config = FactoryConfig(
         peer_dir=args.peer_dir,
         output_dir=args.output_dir,
+        summary_path=str(Path(args.output_dir) / "factory_summary.csv"),
         spectrum=DesignSpectrum(sds=args.sds, sd1=args.sd1),
         max_scale_factor=args.max_sf,
+        n_stories=args.n_stories,
     )
 
     factory = DataFactory(config)

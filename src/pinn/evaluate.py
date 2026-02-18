@@ -20,6 +20,7 @@ Author: Mikisbell
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from pathlib import Path
@@ -33,11 +34,12 @@ from src.utils.figure_manager import FigureManager
 
 logger = logging.getLogger(__name__)
 
-import argparse
 
 def _story_labels(n: int) -> list[str]:
     """Generate story labels dynamically."""
     return [f"Story {i}" for i in range(1, n + 1)]
+
+
 PROCESSED_DIR = Path("data/processed")
 FIG_DIR = Path("manuscript/figures")
 
@@ -50,8 +52,13 @@ def parse_args() -> argparse.Namespace:
         default=Path("data/models"),
         help="Directory containing trained model checkpoints",
     )
+    parser.add_argument(
+        "--processed-dir",
+        type=Path,
+        default=Path("data/processed"),
+        help="Directory containing processed data (test.pt, scaler_params.json)",
+    )
     return parser.parse_args()
-
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -59,9 +66,9 @@ def parse_args() -> argparse.Namespace:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def _load_scaler() -> tuple[np.ndarray, np.ndarray]:
+def _load_scaler(data_dir: Path) -> tuple[np.ndarray, np.ndarray]:
     """Load target mean and std for denormalization."""
-    with open(PROCESSED_DIR / "scaler_params.json") as f:
+    with open(data_dir / "scaler_params.json") as f:
         params = json.load(f)
     mean = np.array(params["target"]["mean"])
     std = np.array(params["target"]["std"])
@@ -73,9 +80,9 @@ def _denormalize(y: np.ndarray, mean: np.ndarray, std: np.ndarray) -> np.ndarray
     return y * std + mean
 
 
-def _load_test_data() -> tuple[torch.Tensor, torch.Tensor]:
+def _load_test_data(data_dir: Path) -> tuple[torch.Tensor, torch.Tensor]:
     """Load test tensors."""
-    data = torch.load(PROCESSED_DIR / "test.pt", weights_only=True)
+    data = torch.load(data_dir / "test.pt", weights_only=True)
     return data["x"], data["y"]
 
 
@@ -300,12 +307,13 @@ def main() -> None:
     # Load data and model
     args = parse_args()
     model_dir = args.model_dir
+    processed_dir = args.processed_dir
 
     # Load data and model
-    x_test, y_test_norm = _load_test_data()
+    x_test, y_test_norm = _load_test_data(processed_dir)
     model = _load_model(model_dir)
     history = _load_history(model_dir)
-    mean, std = _load_scaler()
+    mean, std = _load_scaler(processed_dir)
 
     # Predict
     with torch.no_grad():

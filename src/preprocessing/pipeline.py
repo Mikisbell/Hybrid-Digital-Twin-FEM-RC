@@ -43,7 +43,7 @@ import numpy as np
 import torch
 
 try:
-    from src.opensees_analysis.ospy_model import RCFrameModel
+    from src.opensees_analysis.ospy_model import FrameGeometry, ModelConfig, RCFrameModel
 
     OPS_AVAILABLE = True
 except ImportError:
@@ -165,9 +165,7 @@ class NLTHAPipeline:
         raw = Path(self.config.raw_dir)
         records: list[SimulationRecord] = []
 
-        csv_files = sorted(
-            f for f in raw.glob("Synthetic_*.csv") if not f.name.startswith("factory_summary")
-        )
+        csv_files = sorted(f for f in raw.glob("*.csv") if not f.name.startswith("factory_summary"))
 
         for csv_path in csv_files:
             meta_path = csv_path.with_name(csv_path.stem + "_meta.json")
@@ -472,11 +470,15 @@ class NLTHAPipeline:
 
         # Compute Mass and F_int
         # 1. Build Model to get Mass
-        mass_matrix = torch.eye(5)  # Fallback
+        # 1. Build Model to get Mass
+        mass_matrix = torch.eye(self.config.n_stories)  # Fallback
 
         if OPS_AVAILABLE:
             try:
-                model = RCFrameModel()  # Will fail if opensees not installed
+                # Correctly configure the parametric model
+                frame_cfg = FrameGeometry(n_stories=self.config.n_stories)
+                model_cfg = ModelConfig(frame=frame_cfg)
+                model = RCFrameModel(config=model_cfg)
                 model.build()
                 model.apply_gravity()  # To set masses
                 # Extract mass at each floor
@@ -639,6 +641,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-augment", action="store_true", help="Disable augmentation")
     parser.add_argument("--dry-run", action="store_true", help="Preview without saving")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
+    parser.add_argument("--n-stories", type=int, default=5, help="Number of building stories")
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.INFO
@@ -649,6 +652,7 @@ if __name__ == "__main__":
         out_dir=args.out_dir,
         seq_len=args.seq_len,
         augment=not args.no_augment,
+        n_stories=args.n_stories,
     )
 
     pipe = NLTHAPipeline(cfg)

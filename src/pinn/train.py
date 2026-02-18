@@ -73,7 +73,9 @@ def main() -> None:
     parser.add_argument("--checkpoint-dir", default="data/models", help="Model output dir")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
     parser.add_argument("--lambda-phys", type=float, default=0.1, help="Physics loss weight")
-    parser.add_argument("--n-stories", type=int, default=5, help="Number of building stories (output dim)")
+    parser.add_argument(
+        "--n-stories", type=int, default=5, help="Number of building stories (output dim)"
+    )
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.INFO
